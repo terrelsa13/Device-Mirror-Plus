@@ -43,7 +43,7 @@ definition(
     singleInstance: true,
     description: "Mirror a master device to slave device(s)",
     category: "Convenience",
-    importUrl: "https://gitlab.com/terrelsa13/device-mirror-plus/-/raw/master/Mirror_Plus.groovy",
+    importUrl: "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/Mirror_Plus.groovy",
     iconUrl: "",
     iconX2Url: "")
 

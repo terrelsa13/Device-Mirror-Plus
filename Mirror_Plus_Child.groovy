@@ -51,7 +51,7 @@ definition(
     author: "Terrel Allen",
     description: "mirror plus child",
     category: "Convenience",
-    importUrl: "https://gitlab.com/terrelsa13/device-mirror-plus/-/raw/master/Mirror_Plus_Child.groovy",
+    importUrl: "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/Mirror_Plus_Child.groovy",
     iconUrl: "",
     iconX2Url: "")
 

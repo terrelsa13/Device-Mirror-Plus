@@ -45,7 +45,7 @@ metadata {
     definition (name: "Virtual Omni Sensor Plus",
                 namespace: "whodunitGorilla",
                 author: "Terrel Allen",
-                importUrl: "https://raw.githubusercontent.com/terrelsa13/HubitatPublic/master/examples/drivers/virtualOmniSensorPlus.groovy")
+                importUrl: "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/virtualOmniSensorPlus.groovy")
     {
         capability "Presence Sensor"
         capability "Acceleration Sensor"

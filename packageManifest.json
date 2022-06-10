@@ -1,0 +1,41 @@
+{
+  "packageName": "Device Mirror Plus",
+  "author": "Terrel Allen",
+  "minimumHEVersion": "2.1.9",
+  "dateReleased": "2021-09-28",
+  "licenseFile": "https://github.com/terrelsa13/Device-Mirror-Plus/blob/master/LICENSE",
+  "documentationLink": "https://github.com/terrelsa13/Device-Mirror-Plus/blob/master/README.md",
+  "communityLink": "https://community.hubitat.com/t/release-device-mirror-plus/80314",
+  "apps": [
+    {
+      "id": "72cb5cc5-0720-4e96-ad46-facfc57154d9",
+      "name": "Device Mirror Plus",
+      "namespace": "whodunitGorilla",
+      "location": "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/Mirror_Plus.groovy",
+      "required": true,
+      "oauth": false,
+      "primary": true,
+      "version": "1.0.0"
+    },
+    {
+      "id": "9827044a-3457-45b0-9b8a-0a92409789b0",
+      "name": "Device Mirror Plus Child",
+      "namespace": "whodunitGorilla",
+      "location": "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/Mirror_Plus_Child.groovy",
+      "required": true,
+      "oauth": false,
+      "primary": false,
+      "version": "1.0.0"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "bef8d5d1-04e5-497e-97a4-47f0f3087804",
+      "name": "Virtual Omni Sensor Plus",
+      "namespace": "whodunitGorilla",
+      "location": "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/virtualOmniSensorPlus.groovy",
+      "required": false,
+      "version": "1.0.0"
+    }
+  ]
+}
