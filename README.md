@@ -1,6 +1,6 @@
 # Device Mirror Plus
 
-One master [Switch], [Motion Sensor], [Contact Sensor], [Humidity Sensor], [Temperature Sensor], [Battery Level], [Audio] or [Single Button] to control one or more slaves.
+One primary [Switch], [Motion Sensor], [Contact Sensor], [Humidity Sensor], [Temperature Sensor], [Battery Level], [Audio] or [Single Button] to control one or more secondarys.
 
 - Motion Sensor can now mirror - Motion, Temperature, Illuminance, Humidity, Acceleration, Tamper, and Battery
 - Contact Sensor can now mirror - Contact, Temperature, Tamper, and Battery
