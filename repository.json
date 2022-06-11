@@ -1,0 +1,23 @@
+{
+  "author": "Terrel Allen",
+  "gitHubUrl": "https://github.com/terrelsa13",
+  "payPalUrl": "https://www.paypal.com/donate?hosted_button_id=4CFFHMJV3H4M2",
+  "packages": [
+    {
+      "id": "ac1efd83-9d77-49ff-9336-6040658cd7a0",
+      "name": "Device Mirror Plus",
+      "category": "Convenience",
+      "location": "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/packageManifest.json",
+      "description": "Replicate device commands not only for Switches, but also  Motion, Contact, Humidity, and Temperature Sensors",
+      "tags": [
+        "Doors & Windows",
+        "Multi Sensors",
+        "Presence & Location",
+        "Temperature & Humidity",
+        "Tools & Utilities",
+        "Zigbee",
+        "ZWave"
+      ]
+    }
+  ]
+}
