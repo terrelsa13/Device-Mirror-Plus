@@ -63,6 +63,7 @@ metadata {
         capability "Battery"
         capability "Tamper Alert"
         capability "Three Axis"
+        capability "Fan Control"
         command "arrived"
         command "departed"
         command "accelerationActive"
@@ -92,6 +93,8 @@ metadata {
         command "tamperDetected"
         command "threeAxis", [[name:"x",type:"NUMBER", description:"X-Axis", constraints:["NUMBER"]],[name:"y",type:"NUMBER", description:"Y-Axis", constraints:["NUMBER"]],[name:"z",type:"NUMBER", description:"Z-Axis", constraints:["NUMBER"]]]
         command "setThreeAxis"
+        command "setSpeed", [[name: "Set Speed", constraints: ["low", "medium-low", "medium", "meidium-high", "high", "on", "off", "auto"], type: "ENUM"]]
+        command "cycleSpeed"
         attribute "variable", "String"
         attribute "batteryStatus", "String"
         attribute "batteryLastUpdated", "Date"
@@ -398,5 +401,56 @@ def setThreeAxis(xyz) {
         int z = zPair[1] as Integer
         //command
         threeAxis(x,y,z)
+    }
+}
+
+//Set fan speed
+def setSpeed(speed) {
+    def descriptionText = "${device.displayName} speed is ${speed}"
+    if (txtEnable) log.info "${descriptionText}"
+    sendEvent(name: "speed", value: speed, descriptionText: descriptionText)
+}
+
+//The other fan speed setter
+def setFanSpeed(speed) {
+    setSpeed(speed)
+}
+
+//Get fan speed
+String getFanSpeed() {
+    //return fan speed
+    return device.currentValue('speed')
+}
+
+//Cycle thru fan speeds
+def cycleSpeed() {
+    //log.debug("This is the current fan speed: ${getFanSpeed()}")
+    String currentFanSpeed = getFanSpeed()
+    if (currentFanSpeed == "off") {
+        setSpeed("low")
+    }
+    else if (currentFanSpeed == "low") {
+        setSpeed("medium-low")
+    }
+    else if (currentFanSpeed == "medium-low") {
+        setSpeed("medium")
+    }
+    else if (currentFanSpeed == "medium") {
+        setSpeed("medium-high")
+    }
+    else if (currentFanSpeed == "medium-high") {
+        setSpeed("high")
+    }
+    else if (currentFanSpeed == "high") {
+        setSpeed("auto")
+    }
+    else if (currentFanSpeed == "auto") {
+        setSpeed("off")
+    }
+    else if (currentFanSpeed == "unknown") {
+        setSpeed("off")
+    }
+    else { //(currentFanSpeed == null)
+        setSpeed("unknown")
     }
 }

@@ -15,7 +15,7 @@
       "required": true,
       "oauth": false,
       "primary": true,
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "id": "9827044a-3457-45b0-9b8a-0a92409789b0",
@@ -25,7 +25,7 @@
       "required": true,
       "oauth": false,
       "primary": false,
-      "version": "1.0.0"
+      "version": "1.0.1"
     }
   ],
   "drivers": [
@@ -35,7 +35,7 @@
       "namespace": "whodunitGorilla",
       "location": "https://raw.githubusercontent.com/terrelsa13/Device-Mirror-Plus/master/virtualOmniSensorPlus.groovy",
       "required": false,
-      "version": "1.0.0"
+      "version": "1.0.1"
     }
   ]
 }

@@ -62,15 +62,15 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: " ", install: true, uninstall: true) {
-        section("Devices you can mirror: [Light Dimmer], [Light Switch], [Motion Sensor], [Contact Sensor], [Humidity Sensor], [Temperature Sensor], [Battery Level], [Audio], [Single Button]") {
+        section("Devices you can mirror: [Light Dimmer], [Light Switch], [Motion Sensor], [Contact Sensor], [Humidity Sensor], [Temperature Sensor], [Battery Level], [Audio], [Single Button], [Fan Control]") {
             // checks if either the master device type or master device has been selected, if not then select a master device type
             if(!masterDeviceType && !master){
-                input "masterDeviceType", "enum", title:"Choose Master", options: ["Light Dimmer", "Light Switch", "Motion Sensor", "Contact Sensor", "Humidity Sensor", "Temperature Sensor", "Battery Level", "Audio", "Single Button"], submitOnChange: true
+                input "masterDeviceType", "enum", title:"Choose Parent Device Type", options: ["Light Dimmer", "Light Switch", "Motion Sensor", "Contact Sensor", "Humidity Sensor", "Temperature Sensor", "Battery Level", "Audio", "Single Button", "Fan Control"], submitOnChange: true
             }
             
             // if either master device or type has been chosen, show the input field for master device
             if(masterDeviceType || master){
-                input "master", "capability.${getCapability()}", title: "Select master ${masterDeviceType}", submitOnChange: true, required: true
+                input "master", "capability.${getCapability()}", title: "Select Parent ${masterDeviceType}", submitOnChange: true, required: true
 
             }
 
@@ -90,7 +90,7 @@ def mainPage() {
                 def masterAttributes = showAndGetMasterAttributes()
                 
                 // input field for slaves
-                input "slaves", "capability.${getCapability()}", title: "Select slave ${masterDeviceType}(s)", submitOnChange: true, required: true, multiple: true
+                input "slaves", "capability.${getCapability()}", title: "Select Child ${masterDeviceType}(s)", submitOnChange: true, required: true, multiple: true
                 // if slave(s) has been chosen
                 if(slaves){
                     // check if device type is a button
@@ -108,25 +108,54 @@ def mainPage() {
                     // check if it's an endless loop
                     Boolean p = parent.checkSlavesExist(getSlavesId(), getMasterId(), 4, false)
                     if(!p){
+                        def slaveList = []
                         for(slave in slaves){
-                            def slaveList = []
                             def slaveAttributes = getAttributes(slave)
                             for(attribute in slaveAttributes){
                                 if(masterAttributes.contains(attribute) && !slaveList.contains(attribute)){
                                     slaveList.add(attribute)
+                                    paragraph "<font color=\"green\">[${attribute}] events may be received...</font>"
                                 }
                             }
-                            paragraph "<font color=\"green\">The ${slave.getDisplayName()} device will receive these event(s):${slaveList}</font>" 
                         }
                         state.error = false
                         input "initializeOnUpdate", "bool", defaultValue: "false", title: "Update slave devices when clicking Done"
-                        input "childAppNameIs", "bool", defaultValue: "false", title: "Name the \"Mirror: Child App\" after the first slave device"
+                        input "childAppNameIs", "bool", defaultValue: "false", title: "Name the \"Mirror: Child App\" after the first child device"
+                        if((slaveList.contains("motion") || slaveList.contains("contact") || slaveList.contains("mute") || slaveList.contains("switch"))){
+                            input "reverseEnabled", "bool", defaultValue: "false",  submitOnChange: true, title: "Enable reverse attributes:"
+                            if(reverseEnabled){
+                                if(slaveList.contains("acceleration")){
+                                    input "accelerationReverseEnabled", "bool", defaultValue: "false", title: "Reverse acceleration for child device (e.g. When parent is acceleration active; child will be acceleration inactive.)"
+                                }
+
+                                if(slaveList.contains("contact")){
+                                    input "contactReverseEnabled", "bool", defaultValue: "false", title: "Reverse contact for child device (e.g. When parent is contact open; child will be contact close.)"
+                                }
+
+                                if(slaveList.contains("motion")){
+                                    input "motionReverseEnabled", "bool", defaultValue: "false", title: "Reverse motion for child device (e.g. When parent is motion active; child will be motion inactive.)"
+                                }
+
+                                if(slaveList.contains("mute")){
+                                    input "muteReverseEnabled", "bool", defaultValue: "false", title: "Reverse audio for child device (e.g. When parent is audio mute; child will be audio unmute.)"
+                                }
+
+                                if(slaveList.contains("switch")){
+                                    log.debug "switch is here"
+                                    input "switchReverseEnabled", "bool", defaultValue: "false", title: "Reverse switch for child device (e.g. When parent is switch on; child will be switch off.)"
+                                }
+
+                                if(slaveList.contains("tamper")){
+                                    input "tamperReverseEnabled", "bool", defaultValue: "false", title: "Reverse tamper for child device (e.g. When parent is tamper detected; child will be tamper clear.)"
+                                }
+                            }
+                        }
                     }
                     else{
                         // sets error state to true and throws error into a paragraph
                         state.error = true
-                        state.errorMsg = "Endles Loop"
-                        paragraph "<font color=\"red\">endless loop</font>" 
+                        state.errorMsg = "Endless Loop - Select A Different Device"
+                        paragraph "<font color=\"red\">Select A Different Device</font>" 
                     }
                 }
             }
@@ -166,7 +195,8 @@ def initialize() {
         subscribe(master, "battery", setBatteryLevelHandler) // battery level
         subscribe(master, "acceleration", accelerationSensorHandler) // acceleration
         subscribe(master, "tamper", tamperAlertHandler) // tamper
-        subscribe(master, "threeAxis", threeAxisHandler) // three axis
+        subscribe(master, "threeAxis", threeAxisHandler) // three axis 
+        subscribe(master, "speed", fanSpeedHandler) //fan speed
 
         log.debug "initialize"
 
@@ -227,6 +257,10 @@ def getCapability(){
             return "pushableButton"
             break
 
+        case "Fan Control":
+            return "fanControl"
+            break
+
         default:
             log.debug "getCapability() default case"
             return "default"
@@ -241,11 +275,21 @@ def updateAppName(def string){
 
 // switch on and off
 def switchHandler(evt) {
-    if(evt.value == "on"){
-        slaves?.on()
+    if ((!switchReverseEnabled) || (!reverseEnabled)){
+        if(evt.value == "on"){
+            slaves?.on()
+        }
+        else if(evt.value == "off"){
+            slaves?.off()
+        }
     }
-    else if(evt.value == "off"){
-        slaves?.off()
+    else if(switchReverseEnabled){
+        if(evt.value == "on"){
+            slaves?.off()
+        }
+        else if(evt.value == "off"){
+            slaves?.on()
+        }
     }
 }
 
@@ -261,6 +305,16 @@ def setLevelHandler(evt){
 
     //log.warn evt.getValue()
     slaves?.setLevel(level)
+}
+
+// fan speed
+def fanSpeedHandler(evt){
+    for(slave in slaves){
+        if(slave.hasAttribute("${evt.name}")){
+            //log.debug "set fan speed to ${evt.value}"
+            slave.setSpeed(evt.value)
+        }
+    }
 }
 
 // switch color temperature
@@ -297,21 +351,42 @@ def saturationHandler(evt){
 def motionHandler(evt){
     for(slave in slaves){
         try{
-            //log.debug "motion is ${evt.value}"
-            if(evt.value == "active"){
-                if(slave.hasCommand("motionActive")){
-                    slaves?.motionActive()
+            if((!motionReverseEnabled) || (!reverseEnabled)){
+                //log.debug "motion is ${evt.value}"
+                if(evt.value == "active"){
+                    if(slave.hasCommand("motionActive")){
+                        slaves?.motionActive()
+                    }
+                    else if(slave.hasCommand("active")){
+                        slaves?.active()
+                    }
                 }
-                else if(slave.hasCommand("active")){
-                    slaves?.active()
+                else if(evt.value == "inactive"){
+                    if(slave.hasCommand("motionInactive")){
+                        slaves?.motionInactive()
+                    }
+                    else if(slave.hasCommand("inactive")){
+                        slaves?.inactive()
+                    }
                 }
             }
-            else if(evt.value == "inactive"){
-                if(slave.hasCommand("motionInactive")){
-                    slaves?.motionInactive()
+            else if (motionReverseEnabled){
+                //log.debug "motion is ${evt.value}"
+                if(evt.value == "active"){
+                    if(slave.hasCommand("motionActive")){
+                        slaves?.motionInactive()
+                    }
+                    else if(slave.hasCommand("active")){
+                        slaves?.inactive()
+                    }
                 }
-                else if(slave.hasCommand("inactive")){
-                    slaves?.inactive()
+                else if(evt.value == "inactive"){
+                    if(slave.hasCommand("motionInactive")){
+                        slaves?.motionActive()
+                    }
+                    else if(slave.hasCommand("inactive")){
+                        slaves?.active()
+                    }
                 }
             }
         }
@@ -325,12 +400,23 @@ def motionHandler(evt){
 def contactHandler(evt){
     for(slave in slaves){
         if(slave.hasAttribute("${evt.name}")){
-            //log.debug "set contact sensor to ${evt.value}"
-            if(evt.value == "open"){
-                slave.open()
+            if((!contactReverseEnabled) || (!reverseEnabled)){
+                //log.debug "set contact sensor to ${evt.value}"
+                if((evt.value == "open") || (evt.value == "opened")){
+                    slave.open()
+                }
+                else if((evt.value == "close") || (evt.value == "closed")){
+                    slave.close()
+                }
             }
-            else if(evt.value == "closed"){
-                slave.close()
+            else if(contactReverseEnabled){
+                //log.debug "set contact sensor to ${evt.value}"
+                if((evt.value == "open") || (evt.value == "opened")){
+                    slave.close()
+                }
+                else if((evt.value == "close") || (evt.value == "closed")){
+                    slave.open()
+                }
             }
         }
     }
@@ -384,21 +470,42 @@ def setBatteryLevelHandler(evt){
 def accelerationSensorHandler(evt){
     for(slave in slaves){
         try{
-            //log.debug "acceleration is ${evt.value}"
-            if(evt.value == "active"){
-                if(slave.hasCommand("accelerationActive")){
-                    slaves?.accelerationActive()
+            if((!accelerationReverseEnabled) || (!reverseEnabled)){
+                //log.debug "acceleration is ${evt.value}"
+                if(evt.value == "active"){
+                    if(slave.hasCommand("accelerationActive")){
+                        slaves?.accelerationActive()
+                    }
+                    else if(slave.hasCommand("active")){
+                        slaves?.active()
+                    }
                 }
-                else if(slave.hasCommand("active")){
-                    slaves?.active()
+                else if(evt.value == "inactive"){
+                    if(slave.hasCommand("accelerationInactive")){
+                        slaves?.accelerationInactive()
+                    }
+                    else if(slave.hasCommand("inactive")){
+                        slaves?.inactive()
+                    }
                 }
             }
-            else if(evt.value == "inactive"){
-                if(slave.hasCommand("accelerationInactive")){
-                    slaves?.accelerationInactive()
+            else if(accelerationReverseEnabled){
+                //log.debug "acceleration is ${evt.value}"
+                if(evt.value == "active"){
+                    if(slave.hasCommand("accelerationActive")){
+                        slaves?.accelerationInactive()
+                    }
+                    else if(slave.hasCommand("active")){
+                        slaves?.inactive()
+                    }
                 }
-                else if(slave.hasCommand("inactive")){
-                    slaves?.inactive()
+                else if(evt.value == "inactive"){
+                    if(slave.hasCommand("accelerationInactive")){
+                        slaves?.accelerationActive()
+                    }
+                    else if(slave.hasCommand("inactive")){
+                        slaves?.active()
+                    }
                 }
             }
         }
@@ -412,21 +519,42 @@ def accelerationSensorHandler(evt){
 def tamperAlertHandler(evt){
     for(slave in slaves){
         try{
-            //log.debug "tamper alert is ${evt.value}"
-            if(evt.value == "detected"){
-                if(slave.hasCommand("tamperDetected")){
-                    slaves?.tamperDetected()
+            if((!tamperReverseEnabled) || (!reverseEnabled)){
+                //log.debug "tamper alert is ${evt.value}"
+                if(evt.value == "detected"){
+                    if(slave.hasCommand("tamperDetected")){
+                        slaves?.tamperDetected()
+                    }
+                    else if(slave.hasCommand("detected")){
+                        slaves?.active()
+                    }
                 }
-                else if(slave.hasCommand("detected")){
-                    slaves?.active()
+                else if(evt.value == "clear"){
+                    if(slave.hasCommand("tamperClear")){
+                        slaves?.tamperClear()
+                    }
+                    else if(slave.hasCommand("clear")){
+                        slaves?.inactive()
+                    }
                 }
             }
-            else if(evt.value == "clear"){
-                if(slave.hasCommand("tamperClear")){
-                    slaves?.tamperClear()
+            else if(tamperReverseEnabled){
+                //log.debug "tamper alert is ${evt.value}"
+                if(evt.value == "detected"){
+                    if(slave.hasCommand("tamperDetected")){
+                        slaves?.tamperClear()
+                    }
+                    else if(slave.hasCommand("detected")){
+                        slaves?.inactive()
+                    }
                 }
-                else if(slave.hasCommand("clear")){
-                    slaves?.inactive()
+                else if(evt.value == "clear"){
+                    if(slave.hasCommand("tamperClear")){
+                        slaves?.tamperDetected()
+                    }
+                    else if(slave.hasCommand("clear")){
+                        slaves?.active()
+                    }
                 }
             }
         }
@@ -464,13 +592,25 @@ def threeAxisHandler(evt){
 
 // audio mute and unmute
 def muteHandler(evt){
-    if(evt.value == "muted"){
-        //log.debug "muting slaves"
-        slaves?.mute()
+    if((!muteReverseEnabled) || (!reverseEnabled)){
+        if((evt.value == "mute") || (evt.value == "muted")){
+            //log.debug "muting children"
+            slaves?.mute()
+        }
+        else{
+            //log.debug "unmuting children"
+            slaves?.unmute()
+        }
     }
-    else{
-        //log.debug "unmuting slaves"
-        slaves?.unmute()
+    else if(muteReverseEnabled){
+        if((evt.value == "mute") || (evt.value == "muted")){
+            //log.debug "muting children"
+            slaves?.unmute()
+        }
+        else{
+            //log.debug "unmuting children"
+            slaves?.mute()
+        }
     }
 }
 
@@ -544,11 +684,12 @@ def getAllowedAttributesList(){
     def allowedList = []
     switch(getCapability()){
         case "switchLevel":
-            allowedList = ["switch", "level", "hue", "saturation", "colorTemperature"]
+        case "fanControl":
+            allowedList = ["switch", "level", "hue", "saturation", "colorTemperature", "speed"]
             break
 
         case "switch":
-            allowedList = ["switch", "hue", "saturation", "colorTemperature"]
+            allowedList = ["switch", "hue", "saturation", "colorTemperature", "speed"]
             break
 
         case "motionSensor":
@@ -560,7 +701,7 @@ def getAllowedAttributesList(){
             break
 
         case "relativeHumidityMeasurement":
-            allowedList = ["humidity", "temperature", "battery"]
+            allowedList = ["humidity", "temperature", "battery", "speed"]
             break
 
         case "temperatureMeasurement":
@@ -608,7 +749,8 @@ def initializeValuesSlaves(){
     def map = getAttributeValuesMap(master)
     switch(capability){
         case "switchLevel":
-            initializeValuesLightSwitchLevel(map)
+        case "fanControl":
+            initializeValuesLightSwitchLevelOrFanControl(map)
             break
         case "switch":
             initializeValuesLightSwitch(map)
@@ -636,20 +778,30 @@ def initializeValuesSlaves(){
     }
 }
 
-def initializeValuesLightSwitchLevel(def attributes){
+def initializeValuesLightSwitchLevelOrFanControl(def attributes){
     attributes.each {attributeName, attributeValue ->
         if(attributeValue == null) return
         //log.debug "attributeName: ${attributeName}    value: ${attributeValue}"
         for(slave in slaves){
             switch(attributeName){
                 case "switch":
-                    if(attributeValue == "on"){
-                        slave.on()
+                    if ((!switchReverseEnabled) || (!reverseEnabled)){
+                        if(attributeValue == "on"){
+                            slave.on()
+                        }
+                        else{
+                            slave.off()
+                        }
                     }
-                    else{
-                        slave.off()
+                    else if(switchReverseEnabled){
+                        if(attributeValue == "on"){
+                            slave.off()
+                        }
+                        else{
+                            slave.on()
+                        }
                     }
-                    break 
+                    break
                 case "level": 
                     if(slave.hasCommand("setLevel")){
                         slave.setLevel(attributeValue)
@@ -670,6 +822,9 @@ def initializeValuesLightSwitchLevel(def attributes){
                         slave.setSaturation(attributeValue)
                     }
                     break
+                case "speed":
+                    child.setSpeed(attributeValue)
+                    break
                 default:
                     log.debug "Could not initialize the Light Switch attribute: ${attributeName}"
             }
@@ -684,13 +839,23 @@ def initializeValuesLightSwitch(def attributes){
         for(slave in slaves){
             switch(attributeName){
                 case "switch":
-                    if(attributeValue == "on"){
-                        slave.on()
+                    if ((!switchReverseEnabled) || (!reverseEnabled)){
+                        if(attributeValue == "on"){
+                            slave.on()
+                        }
+                        else{
+                            slave.off()
+                        }
                     }
-                    else{
-                        slave.off()
+                    else if(switchReverseEnabled){
+                        if(attributeValue == "on"){
+                            slave.off()
+                        }
+                        else{
+                            slave.on()
+                        }
                     }
-                    break 
+                    break
                 case "colorTemperature":
                     if(slave.hasCommand("setColorTemperature")){
                         slave.setColorTemperature(attributeValue)
@@ -719,26 +884,52 @@ def initializeValuesMotionSensor(def attributes){
         //log.debug "attributeName: ${attributeName}    value: ${attributeValue}"
         for(slave in slaves){
             if(attributeName == "motion"){
-                if(attributeValue == "active"){
-                    if(slave.hasCommand("motionActive")){
-                        slave.motionActive()
+                if((!motionReverseEnabled) || (!reverseEnabled)){
+                    if(attributeValue == "active"){
+                        if(slave.hasCommand("motionActive")){
+                            slave.motionActive()
+                        }
+                        else if (slave.hasCommand("active")){
+                            slave.active()
+                        }
+                        else{
+                            log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("active")){
-                        slave.active()
-                    }
-                    else{
-                    log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "inactive"){
+                        if(slave.hasCommand("motionInactive")){
+                            slave.motionInactive()
+                        }
+                        else if (slave.hasCommand("inactive")){
+                            slave.inactive()
+                        }
+                        else{
+                            log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
-                else if(attributeValue == "inactive"){
-                    if(slave.hasCommand("motionInactive")){
-                        slave.motionInactive()
+                else if(motionReverseEnabled){
+                    if(attributeValue == "active"){
+                        if(slave.hasCommand("motionActive")){
+                            slave.motionInactive()
+                        }
+                        else if (slave.hasCommand("active")){
+                            slave.inactive()
+                        }
+                        else{
+                            log.debug "2-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("inactive")){
-                        slave.inactive()
-                    }
-                    else{
-                    log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "inactive"){
+                        if(slave.hasCommand("motionInactive")){
+                            slave.motionActive()
+                        }
+                        else if (slave.hasCommand("inactive")){
+                            slave.active()
+                        }
+                        else{
+                            log.debug "3-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
             }
@@ -752,50 +943,102 @@ def initializeValuesMotionSensor(def attributes){
                 slave.setRelativeHumidity(attributeValue)
             }
             else if(attributeName == "acceleration"){
-                if(attributeValue == "active"){
-                    if(slave.hasCommand("accelerationActive")){
-                        slave.accelerationActive()
+                if((!accelerationReverseEnabled) || (!reverseEnabled)){
+                    if(attributeValue == "active"){
+                        if(slave.hasCommand("accelerationActive")){
+                            slave.accelerationActive()
+                        }
+                        else if (slave.hasCommand("active")){
+                            slave.active()
+                        }
+                        else{
+                        log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("active")){
-                        slave.active()
-                    }
-                    else{
-                    log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "inactive"){
+                        if(slave.hasCommand("accelerationInactive")){
+                            slave.accelerationInactive()
+                        }
+                        else if (slave.hasCommand("inactive")){
+                            slave.inactive()
+                        }
+                        else{
+                        log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
-                else if(attributeValue == "inactive"){
-                    if(slave.hasCommand("accelerationInactive")){
-                        slave.accelerationInactive()
+                else if(accelerationReverseEnabled){
+                    if(attributeValue == "active"){
+                        if(slave.hasCommand("accelerationActive")){
+                            slave.accelerationInactive()
+                        }
+                        else if (slave.hasCommand("active")){
+                            slave.inactive()
+                        }
+                        else{
+                        log.debug "2-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("inactive")){
-                        slave.inactive()
-                    }
-                    else{
-                    log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "inactive"){
+                        if(slave.hasCommand("accelerationInactive")){
+                            slave.accelerationActive()
+                        }
+                        else if (slave.hasCommand("inactive")){
+                            slave.active()
+                        }
+                        else{
+                        log.debug "3-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
             }
             else if(attributeName == "tamper"){
-                if(attributeValue == "detected"){
-                    if(slave.hasCommand("tamperDetected")){
-                        slave.tamperDetected()
+                if((!tamperReverseEnabled) || (!reverseEnabled)){
+                    if(attributeValue == "detected"){
+                        if(slave.hasCommand("tamperDetected")){
+                            slave.tamperDetected()
+                        }
+                        else if (slave.hasCommand("detected")){
+                            slave.detected()
+                        }
+                        else{
+                        log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("detected")){
-                        slave.detected()
-                    }
-                    else{
-                    log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "clear"){
+                        if(slave.hasCommand("tamperClear")){
+                            slave.tamperClear()
+                        }
+                        else if (slave.hasCommand("clear")){
+                            slave.clear()
+                        }
+                        else{
+                        log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
-                else if(attributeValue == "clear"){
-                    if(slave.hasCommand("tamperClear")){
-                        slave.tamperClear()
+                else if(tamperReverseEnabled){
+                    if(attributeValue == "detected"){
+                        if(slave.hasCommand("tamperDetected")){
+                            slave.tamperClear()
+                        }
+                        else if (slave.hasCommand("detected")){
+                            slave.clear()
+                        }
+                        else{
+                        log.debug "2-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("clear")){
-                        slave.clear()
-                    }
-                    else{
-                    log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "clear"){
+                        if(slave.hasCommand("tamperClear")){
+                            slave.tamperDetected()
+                        }
+                        else if (slave.hasCommand("clear")){
+                            slave.detected()
+                        }
+                        else{
+                        log.debug "3-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
             }
@@ -818,40 +1061,79 @@ def initializeValuesContactSensor(def attributes){
         //log.debug "attributeName: ${attributeName}    value: ${attributeValue}"
         for(slave in slaves){
             if(attributeName == "contact"){
-                if(attributeValue == "open"){
-                    slave.open()
+                if((!contactReverseEnabled) || (!reverseEnabled)){
+                    if((attributeValue == "open") || (attributeValue == "opened")){
+                        slave.open()
+                    }
+                    else if((attributeValue == "close") || (attributeValue == "closed")){
+                        slave.close()
+                    }
+                    else{
+                        log.debug "Could not initialize the Contact Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    }
                 }
-                else if(attributeValue == "closed"){
-                    slave.close()
-                }
-                else{
-                    log.debug "Could not initialize the Contact Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                else if(contactReverseEnabled){
+                    if((attributeValue == "open") || (attributeValue == "opened")){
+                        slave.close()
+                    }
+                    else if((attributeValue == "close") || (attributeValue == "closed")){
+                        slave.open()
+                    }
+                    else{
+                        log.debug "Could not initialize the Contact Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    }
                 }
             }
             else if (attributeName == "temperature"){
                 slave.setTemperature(attributeValue)
             }
             else if(attributeName == "tamper"){
-                if(attributeValue == "detected"){
-                    if(slave.hasCommand("tamperDetected")){
-                        slave.tamperDetected()
+                if((!tamperReverseEnabled) || (!reverseEnabled)){
+                    if(attributeValue == "detected"){
+                        if(slave.hasCommand("tamperDetected")){
+                            slave.tamperDetected()
+                        }
+                        else if (slave.hasCommand("detected")){
+                            slave.detected()
+                        }
+                        else{
+                        log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("detected")){
-                        slave.detected()
-                    }
-                    else{
-                    log.debug "0-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "clear"){
+                        if(slave.hasCommand("tamperClear")){
+                            slave.tamperClear()
+                        }
+                        else if (slave.hasCommand("clear")){
+                            slave.clear()
+                        }
+                        else{
+                        log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
-                else if(attributeValue == "clear"){
-                    if(slave.hasCommand("tamperClear")){
-                        slave.tamperClear()
+                else if(tamperReverseEnabled){
+                    if(attributeValue == "detected"){
+                        if(slave.hasCommand("tamperDetected")){
+                            slave.tamperClear()
+                        }
+                        else if (slave.hasCommand("detected")){
+                            slave.clear()
+                        }
+                        else{
+                        log.debug "2-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
-                    else if (slave.hasCommand("clear")){
-                        slave.clear()
-                    }
-                    else{
-                    log.debug "1-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                    else if(attributeValue == "clear"){
+                        if(slave.hasCommand("tamperClear")){
+                            slave.tamperDetected()
+                        }
+                        else if (slave.hasCommand("clear")){
+                            slave.detected()
+                        }
+                        else{
+                        log.debug "3-Could not initialize the Motion Sensor attribute: [${attributeName}] with value: [${attributeValue}]"
+                        }
                     }
                 }
             }
@@ -920,11 +1202,21 @@ def initializeValuesAudio(def attributes){
         for(slave in slaves){
             switch(attributeName) {
                 case "mute":
-                    if(attributeValue == "muted"){
-                        slave.mute()
+                    if((!muteReverseEnabled) || (!reverseEnabled)){
+                        if((attributeValue == "mute") || (attributeValue == "muted")){
+                            slave.mute()
+                        }
+                        else{
+                            slave.unmute()
+                        }
                     }
-                    else{
-                        slave.unmute()
+                    else if(muteReverseEnabled){
+                        if((attributeValue == "mute") || (attributeValue == "muted")){
+                            slave.unmute()
+                        }
+                        else{
+                            slave.mute()
+                        }
                     }
                     break
                 case "volume":
